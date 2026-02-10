@@ -1,14 +1,4 @@
 
-// Netlify fix marker: externalized JS
-window.__FB_JS_LOADED__ = true;
-document.addEventListener("DOMContentLoaded", () => {
-  const sp = document.getElementById("statusPill");
-  if (sp && sp.textContent && sp.textContent.trim() === "Sin conectar") {
-    sp.textContent = "JS cargado ✅";
-    sp.classList.remove("bad");
-  }
-});
-
 // Netlify proxy (avoids browser CORS)
   const API_BASE = "https://script.google.com/macros/s/AKfycbxG1FFqdk4HmqMoy2TaKHsms_bJq17E1GFLzm8QNqJbmxNx8jpCo1k2zL_DoLGoIrYh/exec";
 
@@ -1205,7 +1195,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 }
 
-  document.addEventListener("DOMContentLoaded", ()=>{
-    bindUI();
-    await initData();
-  });
+ document.addEventListener("DOMContentLoaded", async ()=>{
+  bindUI();
+  await initData();
+});
