@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 // Netlify proxy (avoids browser CORS)
-  const API_BASE = "/.netlify/functions/fbrain";
+  const API_BASE = "https://script.google.com/macros/s/AKfycbxG1FFqdk4HmqMoy2TaKHsms_bJq17E1GFLzm8QNqJbmxNx8jpCo1k2zL_DoLGoIrYh/exec";
 
   // ---------- State ----------
   let CATALOG = { emotions: [], tags: [], people: [] };
