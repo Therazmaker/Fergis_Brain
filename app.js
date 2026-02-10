@@ -80,9 +80,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
     return parseJsonSafe_(r);
   }
-);
-    return r.json();
-  }
 
   // ---------- UI Helpers ----------
   function fillSelect(id, arr, opts={}){
