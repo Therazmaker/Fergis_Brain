@@ -1,4 +1,14 @@
 
+// Netlify fix marker: externalized JS
+window.__FB_JS_LOADED__ = true;
+document.addEventListener("DOMContentLoaded", async () => {
+  const sp = document.getElementById("statusPill");
+  if (sp && sp.textContent && sp.textContent.trim() === "Sin conectar") {
+    sp.textContent = "JS cargado ✅";
+    sp.classList.remove("bad");
+  }
+});
+
 // Netlify proxy (avoids browser CORS)
   const API_BASE = "https://script.google.com/macros/s/AKfycbxG1FFqdk4HmqMoy2TaKHsms_bJq17E1GFLzm8QNqJbmxNx8jpCo1k2zL_DoLGoIrYh/exec";
 
@@ -44,14 +54,33 @@
   }
 
   // ---------- API ----------
+  async function parseJsonSafe_(r){
+    const ct = (r.headers.get("content-type") || "").toLowerCase();
+    const txt = await r.text();
+    // If we got HTML (often a 404 page), show a clearer error.
+    if(ct.includes("text/html") || txt.trim().startsWith("<!DOCTYPE") || txt.trim().startsWith("<html")){
+      return { ok:false, error:"API devolvió HTML (no JSON). Revisa API_BASE / deploy.", status:r.status, html: txt.slice(0,200) };
+    }
+    try{ return JSON.parse(txt); }
+    catch(e){ return { ok:false, error:"Respuesta no es JSON válido.", status:r.status, raw: txt.slice(0,200) }; }
+  }
+
   async function apiGet(params){
     const url = API_BASE + "?" + new URLSearchParams({ ...params, api_key: getApiKey() });
-    const r = await fetch(url);
-    return r.json();
+    const r = await fetch(url, { method:"GET" });
+    return parseJsonSafe_(r);
   }
+
   async function apiPost(data){
     data.api_key = getApiKey();
-    const r = await fetch(API_BASE, { method:"POST", body: JSON.stringify(data) });
+    const r = await fetch(API_BASE, {
+      method:"POST",
+      headers: { "Content-Type":"application/json" },
+      body: JSON.stringify(data)
+    });
+    return parseJsonSafe_(r);
+  }
+);
     return r.json();
   }
 
@@ -340,13 +369,13 @@
     document.getElementById("profileName").textContent = p;
   }
 
-  async function saveApiKey(){
+  function saveApiKey(){
     const k = document.getElementById("apiKeyInput").value.trim();
     if(!k){ toast("Falta API key", "Pégala en Settings."); return; }
     setApiKey(k);
     refreshHeader();
     toast("API key", "Guardada 🔐");
-    await initData();
+    initData();
   }
 
   async function testPing(){
@@ -1042,36 +1071,20 @@
     refreshHeader();
     document.getElementById("apiKeyInput").value = getApiKey();
 
-    const k = getApiKey();
-    if(!k){
+    if(!getApiKey()){
       setStatus(false, "Sin API key");
       go("settings");
       return;
     }
 
-    // show a more accurate state while we test connectivity
-    setStatus(false, "Conectando…");
-
-    try{
-      const ok = await refreshCatalog();
-      if(ok){
-        setStatus(true, "Conectado");
-        await refreshHome();
-        // insights only when user goes there
-        go("home");
-        return;
-      }
-      // If catalog didn't load, treat as disconnected
-      setStatus(false, "Sin conectar");
-      go("settings");
-    }catch(err){
-      console.error("initData failed:", err);
-      setStatus(false, "Sin conectar");
-      toast("Conexión", "No pude conectar al API. Revisa tu URL/permiso del WebApp.");
-      go("settings");
+    const ok = await refreshCatalog();
+    if(ok){
+      setStatus(true, "Conectado");
+      await refreshHome();
+      // insights only when user goes there
     }
+    go("home");
   }
-
 
   function bindUI(){
     // routing
@@ -1195,7 +1208,7 @@
 
 }
 
- document.addEventListener("DOMContentLoaded", async ()=>{
-  bindUI();
-  await initData();
-});
+  document.addEventListener("DOMContentLoaded", async ()=>{
+    bindUI();
+    try{ await initData(); }catch(e){ console.error(e); setStatus(false,"Sin conectar"); }
+  });
