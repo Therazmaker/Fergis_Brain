@@ -115,14 +115,7 @@ document.addEventListener("DOMContentLoaded", () => {
     return [...document.querySelectorAll("#tagChips .chip.on")].map(el=>el.textContent.trim()).filter(Boolean);
   }
 
-  
-  function matchesProfile(e, currentProfile){
-    const p = String(e.profile || "").trim().toLowerCase();
-    if(!p) return true;
-    return p === String(currentProfile||"").trim().toLowerCase();
-  }
-
-// ---------- Data ----------
+  // ---------- Data ----------
   async function refreshCatalog(){
     const res = await apiGet({ route:"catalog" });
     if(!res.ok){
@@ -165,10 +158,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function refreshHome(){
     const from = new Date(Date.now() - 30*24*60*60*1000).toISOString();
-    const res = await apiGet({ route:"entries", from, limit: 250 });
+    const res = await apiGet({ route:"entries", from, limit: 250, profile: currentProfile() });
     if(!res.ok) return;
 
-    const entries = (res.entries || []).filter(e=>matchesProfile(e, currentProfile()));
+    const entries = res.entries || [];
     LAST_ENTRIES = entries;
 
     document.getElementById("kpiCount").textContent = entries.length;
@@ -231,7 +224,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const tags = [...new Set([...chipTags, ...extraTags])];
 
     const entry = {
-      ,
+      profile: currentProfile(),
       type: document.getElementById("typeInput").value,
       person: document.getElementById("personInput").value,
       emotion: document.getElementById("emotionInput").value,
@@ -266,7 +259,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function loadEntries(){
-    const params = { route:"entries", limit: Number(document.getElementById("filterLimit").value || 100) };
+    const params = { route:"entries", limit: Number(document.getElementById("filterLimit").value || 100), profile: currentProfile() };
 
     const em = document.getElementById("filterEmotion").value.trim();
     const pe = document.getElementById("filterPerson").value.trim();
@@ -283,7 +276,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const res = await apiGet(params);
     if(!res.ok){ toast("Error", "No pude cargar registros."); return; }
 
-    const entries = (res.entries || []).filter(e=>matchesProfile(e, currentProfile()));
+    const entries = res.entries || [];
     LAST_ENTRIES = entries;
 
     const box = document.getElementById("entriesList");
@@ -357,13 +350,13 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("profileName").textContent = p;
   }
 
-  function saveApiKey(){
+  async function saveApiKey(){
     const k = document.getElementById("apiKeyInput").value.trim();
     if(!k){ toast("Falta API key", "Pégala en Settings."); return; }
     setApiKey(k);
     refreshHeader();
     toast("API key", "Guardada 🔐");
-    initData();
+    await initData();
   }
 
   async function testPing(){
@@ -454,7 +447,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const payload = {
       id,
-      ,
+      profile: currentProfile(),
       type: document.getElementById("editType").value,
       person: document.getElementById("editPerson").value,
       emotion: document.getElementById("editEmotion").value,
@@ -500,10 +493,10 @@ document.addEventListener("DOMContentLoaded", () => {
   async function refreshInsights(){
     // Use 30 days for charts, but calendar uses current month range
     const from = new Date(Date.now() - 30*24*60*60*1000).toISOString();
-    const res = await apiGet({ route:"entries", from, limit: 500 });
+    const res = await apiGet({ route:"entries", from, limit: 500, profile: currentProfile() });
     if(!res.ok){ toast("Error", "No pude cargar insights."); return; }
 
-    const entries = (res.entries || []).filter(e=>matchesProfile(e, currentProfile()));
+    const entries = res.entries || [];
 
     // Intensity by day (avg per day)
     const byDay = {};
@@ -605,11 +598,12 @@ document.addEventListener("DOMContentLoaded", () => {
       route:"entries",
       from: new Date(gridStart.getTime() - 24*60*60*1000).toISOString(),
       to: new Date(gridEnd.getTime() + 24*60*60*1000).toISOString(),
-      limit: 500
+      limit: 500,
+      profile: currentProfile()
     });
     if(!res.ok) return;
 
-    const entries = (res.entries || []).filter(e=>matchesProfile(e, currentProfile()));
+    const entries = res.entries || [];
     const byDay = {};
     entries.forEach(e=>{
       const d = new Date(e.ts);
@@ -1058,20 +1052,36 @@ document.addEventListener("DOMContentLoaded", () => {
     refreshHeader();
     document.getElementById("apiKeyInput").value = getApiKey();
 
-    if(!getApiKey()){
+    const k = getApiKey();
+    if(!k){
       setStatus(false, "Sin API key");
       go("settings");
       return;
     }
 
-    const ok = await refreshCatalog();
-    if(ok){
-      setStatus(true, "Conectado");
-      await refreshHome();
-      // insights only when user goes there
+    // show a more accurate state while we test connectivity
+    setStatus(false, "Conectando…");
+
+    try{
+      const ok = await refreshCatalog();
+      if(ok){
+        setStatus(true, "Conectado");
+        await refreshHome();
+        // insights only when user goes there
+        go("home");
+        return;
+      }
+      // If catalog didn't load, treat as disconnected
+      setStatus(false, "Sin conectar");
+      go("settings");
+    }catch(err){
+      console.error("initData failed:", err);
+      setStatus(false, "Sin conectar");
+      toast("Conexión", "No pude conectar al API. Revisa tu URL/permiso del WebApp.");
+      go("settings");
     }
-    go("home");
   }
+
 
   function bindUI(){
     // routing
@@ -1197,5 +1207,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.addEventListener("DOMContentLoaded", ()=>{
     bindUI();
-    initData();
+    await initData();
   });
